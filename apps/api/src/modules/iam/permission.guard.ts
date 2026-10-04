@@ -1,9 +1,9 @@
 /**
- * FooladERP - IAM Permission Guard
+ * TCERP - IAM Permission Guard
  * Enforces backend RBAC, Granular Module Actions, Record Scope, and Sensitive Field Policies.
  */
 
-import { RecordScope, Role, RolePermission, User } from '@foolad/domain';
+import { RecordScope, Role, RolePermission, User } from '@tcerp/domain';
 
 export interface SecurityContext {
   user: User;

@@ -1,5 +1,5 @@
 /**
- * FooladERP - In-Memory Stateful Repository & Seed Store
+ * TCERP - In-Memory Stateful Repository & Seed Store
  * Holds initial seeds and live transactional state for Phase 1 testing and API execution.
  */
 
@@ -18,7 +18,7 @@ import {
   Setting,
   Team,
   User,
-} from '@foolad/domain';
+} from '@tcerp/domain';
 
 export class MemoryStore {
   public companies: Map<string, Company> = new Map();

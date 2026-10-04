@@ -1,5 +1,5 @@
 /**
- * FooladERP - Treasury & Accounting Foundation Service
+ * TCERP - Treasury & Accounting Foundation Service
  * Implements critical financial invariants:
  * 1. BankStatementLine daily reordering & running balance recalculation
  * 2. Exact BankTransfer posting: Debit Dest X, Debit Fee F, Credit Source X+F with 2 StatementLines
@@ -7,7 +7,7 @@
  * 4. OperationalSettlementClaim rejection & debt restoration
  */
 
-import { BankStatementLine, BankTransfer, JournalEntry, JournalLine, OperationalSettlementClaim } from '@foolad/domain';
+import { BankStatementLine, BankTransfer, JournalEntry, JournalLine, OperationalSettlementClaim } from '@tcerp/domain';
 
 export class TreasuryFoundationService {
   /**

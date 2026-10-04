@@ -1,6 +1,6 @@
 {
-  "name": "سیستم جامع مدیریت و بازرگانی فولاد (FooladERP)",
-  "description": "سامانه یکپارچه ERP/CRM، معاملات، انبار، حسابداری دوبل و مؤدیان صنف آهن و فولاد",
+  "name": "TCERP",
+  "description": "TCERP - سامانه جامع بازرگانی و ERP/CRM معاملات آهن و فولاد",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

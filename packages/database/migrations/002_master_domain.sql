@@ -1,5 +1,5 @@
 -- ====================================================================
--- FOOLAD ERP - MIGRATION 002: MASTER DOMAIN SCHEMAS
+-- TCERP - MIGRATION 002: MASTER DOMAIN SCHEMAS
 -- Scope: CRM, Products, Sourcing, Sales, Procurement, Loading, Inventory,
 --        Accounting Core, Treasury, Tax, Workflow, Automation, Import/Export
 -- ====================================================================

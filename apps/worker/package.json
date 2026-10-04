@@ -1,11 +1,11 @@
 {
-  "name": "@foolad/worker",
+  "name": "@tcerp/worker",
   "version": "1.0.0",
   "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@foolad/domain": "*",
-    "@foolad/shared": "*"
+    "@tcerp/domain": "*",
+    "@tcerp/shared": "*"
   }
 }

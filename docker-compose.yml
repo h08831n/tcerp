@@ -3,10 +3,10 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: foolad_erp_postgres
+    container_name: tcerp_postgres
     restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-foolad_erp}
+      POSTGRES_DB: ${DB_NAME:-tcerp}
       POSTGRES_USER: ${DB_USER:-erp_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
@@ -14,14 +14,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-erp_user} -d ${DB_NAME:-foolad_erp}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-erp_user} -d ${DB_NAME:-tcerp}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: foolad_erp_redis
+    container_name: tcerp_redis
     restart: always
     command: >
       sh -c 'if [ -n "${REDIS_PASSWORD}" ]; then
@@ -41,7 +41,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: foolad_erp_minio
+    container_name: tcerp_minio
     restart: always
     command: server /data --console-address ":9001"
     environment:

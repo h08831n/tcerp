@@ -9,12 +9,12 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-        '@foolad/domain': path.resolve(__dirname, 'packages/domain/src'),
-        '@foolad/database': path.resolve(__dirname, 'packages/database/src'),
-        '@foolad/shared': path.resolve(__dirname, 'packages/shared/src'),
-        '@foolad/ui': path.resolve(__dirname, 'packages/ui/src'),
-        '@foolad/api': path.resolve(__dirname, 'apps/api/src'),
-        '@foolad/worker': path.resolve(__dirname, 'apps/worker/src'),
+        '@tcerp/domain': path.resolve(__dirname, 'packages/domain/src'),
+        '@tcerp/database': path.resolve(__dirname, 'packages/database/src'),
+        '@tcerp/shared': path.resolve(__dirname, 'packages/shared/src'),
+        '@tcerp/ui': path.resolve(__dirname, 'packages/ui/src'),
+        '@tcerp/api': path.resolve(__dirname, 'apps/api/src'),
+        '@tcerp/worker': path.resolve(__dirname, 'apps/worker/src'),
       },
     },
     server: {

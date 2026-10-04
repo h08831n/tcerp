@@ -1,15 +1,15 @@
 /**
- * FooladERP - API Foundation Controller
- * Package: @foolad/api
+ * TCERP - API Foundation Controller
+ * Package: @tcerp/api
  */
 
 import { auditService } from '../modules/audit/audit.service';
 import { sequenceService } from '../modules/sequences/sequence.service';
 import { fileStorageService } from '../modules/files/storage.service';
 import { treasuryFoundationService } from '../modules/treasury/treasury-foundation.service';
-import { memoryStore } from '@foolad/database';
-import { validateEnvironment } from '@foolad/shared';
-import { queueService } from '@foolad/worker';
+import { memoryStore } from '@tcerp/database';
+import { validateEnvironment } from '@tcerp/shared';
+import { queueService } from '@tcerp/worker';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;

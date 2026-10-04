@@ -1,9 +1,9 @@
 /**
- * FooladERP - AuditLog Service
+ * TCERP - AuditLog Service
  * Guarantees immutable logging of all critical business & financial operations.
  */
 
-import { AuditAction, AuditLog } from '@foolad/domain';
+import { AuditAction, AuditLog } from '@tcerp/domain';
 
 export class AuditService {
   private logs: AuditLog[] = [];

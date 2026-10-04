@@ -1,9 +1,9 @@
 /**
- * FooladERP - Central Asynchronous Queue & Dead Letter Queue Service
+ * TCERP - Central Asynchronous Queue & Dead Letter Queue Service
  * Handles background jobs: Moadian submissions, SMS dispatch, large imports/exports, with priority & scheduled delays.
  */
 
-import { QueueJob, QueueJobPriority } from '@foolad/domain';
+import { QueueJob, QueueJobPriority } from '@tcerp/domain';
 
 export class QueueService {
   private jobs: Map<string, QueueJob> = new Map();

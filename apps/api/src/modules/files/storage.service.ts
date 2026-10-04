@@ -1,9 +1,9 @@
 /**
- * FooladERP - Content-Addressable File Vault & Attachment Service
+ * TCERP - Content-Addressable File Vault & Attachment Service
  * Uses SHA-256 content hash deduplication: identical files are stored physically only once.
  */
 
-import { FileAttachment, FileRecord } from '@foolad/domain';
+import { FileAttachment, FileRecord } from '@tcerp/domain';
 
 export class FileStorageService {
   private filesByHash: Map<string, FileRecord> = new Map();
@@ -55,7 +55,7 @@ export class FileStorageService {
         size_bytes: sizeBytes,
         content_hash: contentHash,
         storage_path: `/vault/${contentHash.substring(0, 2)}/${contentHash.substring(2, 4)}/${contentHash}`,
-        storage_bucket: 'foolad-erp-vault',
+        storage_bucket: 'tcerp-files',
         created_by: params.userId,
         created_at: new Date().toISOString(),
       };

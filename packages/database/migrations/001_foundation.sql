@@ -1,7 +1,7 @@
 -- ====================================================================
--- FOOLAD ERP - MIGRATION 001: FOUNDATION SCHEMAS
+-- TCERP - MIGRATION 001: FOUNDATION SCHEMAS
 -- Scope: Multi-tenant Companies, IAM, Audit, Sequences, Settings, Files, Queues
--- Package: @foolad/database
+-- Package: @tcerp/database
 -- ====================================================================
 
 -- 1. Companies (Tenants)

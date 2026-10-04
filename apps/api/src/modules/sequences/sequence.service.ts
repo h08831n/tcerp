@@ -1,9 +1,9 @@
 /**
- * FooladERP - Concurrency-Safe Sequence & Document Numbering Service
+ * TCERP - Concurrency-Safe Sequence & Document Numbering Service
  * Enforces atomic increments, race-condition safety, customizable formatting, and reset cycles.
  */
 
-import { Sequence } from '@foolad/domain';
+import { Sequence } from '@tcerp/domain';
 
 export class SequenceService {
   private sequences: Map<string, Sequence> = new Map();

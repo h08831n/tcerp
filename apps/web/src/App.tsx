@@ -25,16 +25,21 @@ import {
   ChevronRight,
   Sliders,
   DollarSign,
-  Briefcase
+  Briefcase,
+  UserCheck,
+  Plus
 } from 'lucide-react';
-import { FoundationController as FoundationApiHandler } from '@foolad/api';
-import { memoryStore } from '@foolad/database';
-import { fileStorageService } from '@foolad/api';
-import { queueService } from '@foolad/worker';
-import { TestResult } from '../../../tests/foundation.test';
+import { FoundationController as FoundationApiHandler, CrmController } from '@tcerp/api';
+import { memoryStore, PartyDetail } from '@tcerp/database';
+import { fileStorageService } from '@tcerp/api';
+import { queueService } from '@tcerp/worker';
+import { TestResult as FoundationTestResult } from '../../../tests/foundation.test';
+import { runCrmTests } from '../../../tests/crm.test';
+import { PartyList } from './components/crm/PartyList';
+import { PartyDetailModal } from './components/crm/PartyDetailModal';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'health' | 'iam' | 'sequences' | 'files' | 'queue' | 'audit' | 'tests'>('health');
+  const [activeTab, setActiveTab] = useState<'crm' | 'health' | 'iam' | 'sequences' | 'files' | 'queue' | 'audit' | 'tests'>('crm');
   const [healthData, setHealthData] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -42,7 +47,7 @@ export default function App() {
   const [sequences, setSequences] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [queueState, setQueueState] = useState<any>(null);
-  const [testResults, setTestResults] = useState<{ summary: any; results: TestResult[] } | null>(null);
+  const [testResults, setTestResults] = useState<{ summary: any; results: any[] } | null>(null);
   const [isRunningTests, setIsRunningTests] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('comp-001-arvin');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -50,6 +55,27 @@ export default function App() {
   const [testSequenceDocType, setTestSequenceDocType] = useState('SALES_DOCUMENT');
   const [lastGeneratedNumber, setLastGeneratedNumber] = useState<string | null>(null);
   const [uploadDemoResult, setUploadDemoResult] = useState<any>(null);
+
+  // CRM State
+  const [selectedParty, setSelectedParty] = useState<PartyDetail | null>(null);
+  const [isPartyModalOpen, setIsPartyModalOpen] = useState(false);
+
+  const userCtx = useMemo(() => ({
+    user: {
+      id: 'usr-admin-01',
+      company_id: selectedCompanyId,
+      username: 'admin',
+      first_name: 'حسین',
+      last_name: 'نقنه',
+    },
+    roles: [{ id: 'role-admin', code: 'ADMIN' }],
+    permissions: [
+      { module: 'crm', action: 'view', record_scope: 'ALL' },
+      { module: 'crm', action: 'view_all_salespersons', record_scope: 'ALL' },
+      { module: 'sales', action: 'override_price', record_scope: 'ALL' },
+    ],
+    teamMemberIds: [],
+  }), [selectedCompanyId]);
 
   const refreshData = useCallback(() => {
     setHealthData(FoundationApiHandler.getHealth().data);
@@ -65,12 +91,17 @@ export default function App() {
     refreshData();
   }, [refreshData]);
 
-  // Keyboard Shortcuts: Ctrl+K for Command Palette, Esc to close
+  // Keyboard Shortcuts: Ctrl+K for Command Palette, F2 for New Party, Esc
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(prev => !prev);
+      }
+      if (e.key === 'F2') {
+        e.preventDefault();
+        setSelectedParty(null);
+        setIsPartyModalOpen(true);
       }
       if (e.key === 'Escape') {
         setCommandPaletteOpen(false);
@@ -83,10 +114,20 @@ export default function App() {
   const runAllTests = async () => {
     setIsRunningTests(true);
     try {
-      const res = await FoundationApiHandler.runAllTests();
-      if (res.success && res.data) {
-        setTestResults(res.data as any);
-      }
+      const { runFoundationTests } = await import('../../../tests/foundation.test');
+      const [foundationRes, crmRes] = await Promise.all([
+        runFoundationTests(),
+        runCrmTests(),
+      ]);
+
+      setTestResults({
+        summary: {
+          total: foundationRes.summary.total + crmRes.summary.total,
+          passed: foundationRes.summary.passed + crmRes.summary.passed,
+          failed: foundationRes.summary.failed + crmRes.summary.failed,
+        },
+        results: [...foundationRes.results, ...crmRes.results],
+      });
     } finally {
       setIsRunningTests(false);
       refreshData();
@@ -129,15 +170,16 @@ export default function App() {
   };
 
   const commands = useMemo(() => [
-    { title: 'اجرای تست‌های خودکار فاز ۱ (Automated Tests)', action: () => { setActiveTab('tests'); runAllTests(); } },
+    { title: 'مرکز مدیریت مشتریان و CRM (Parties & CRM Core)', action: () => setActiveTab('crm') },
+    { title: 'ثبت طرف‌حساب جدید (F2 New Party)', action: () => { setSelectedParty(null); setIsPartyModalOpen(true); } },
+    { title: 'اجرای تست‌های خودکار فاز ۱ و ۲ (19 Tests)', action: () => { setActiveTab('tests'); runAllTests(); } },
     { title: 'بررسی وضعیت زیرساخت و داکر (Health Check)', action: () => setActiveTab('health') },
     { title: 'مدیریت کاربران و دسترسی‌ها (IAM Console)', action: () => setActiveTab('iam') },
     { title: 'موتور توالی و سریال اسناد (Sequences Engine)', action: () => setActiveTab('sequences') },
     { title: 'مخزن فایل با دابلیکیت‌زدایی (File Vault)', action: () => setActiveTab('files') },
     { title: 'مانیتورینگ صف پردازش‌های ناهمگام (Queue Monitor)', action: () => setActiveTab('queue') },
     { title: 'دفتر ممیزی تغییرات غیرقابل تغییر (Audit Log)', action: () => setActiveTab('audit') },
-    { title: 'صدور شماره سند فروش آزمایشی (Next Sales Number)', action: handleGenerateSequence },
-  ], [handleGenerateSequence]);
+  ], [runAllTests]);
 
   const filteredCommands = commands.filter(c => c.title.toLowerCase().includes(commandQuery.toLowerCase()));
 
@@ -151,12 +193,12 @@ export default function App() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-lg text-white tracking-tight">سیستم جامع فولاد تجارت آروین</h1>
+              <h1 className="font-bold text-lg text-white tracking-tight">TCERP</h1>
               <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
-                Phase 1: Foundation
+                Phase 2: Party & CRM
               </span>
             </div>
-            <p className="text-xs text-slate-400">کنسول مدیریت معماری، امنیت، ممیزی، توالی و صف‌های پردازش</p>
+            <p className="text-xs text-slate-400">سامانه جامع بازرگانی، CRM، معاملات، انبار و حسابداری دوبل آهن و فولاد</p>
           </div>
         </div>
 
@@ -164,10 +206,10 @@ export default function App() {
           {/* Quick Command Palette Button */}
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition"
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition cursor-pointer"
           >
             <Command className="w-3.5 h-3.5 text-amber-400" />
-            <span>پالت دستورات سریع</span>
+            <span>پالت دستورات</span>
             <kbd className="bg-slate-900 text-slate-400 text-[10px] px-1.5 py-0.5 rounded font-mono border border-slate-700">Ctrl+K</kbd>
           </button>
 
@@ -175,16 +217,16 @@ export default function App() {
           <button
             onClick={runAllTests}
             disabled={isRunningTests}
-            className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow transition disabled:opacity-50"
+            className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow transition disabled:opacity-50 cursor-pointer"
           >
             <Play className={`w-3.5 h-3.5 ${isRunningTests ? 'animate-spin' : ''}`} />
-            <span>{isRunningTests ? 'در حال اجرای آزمون‌ها...' : 'اجرای تست‌های خودکار'}</span>
+            <span>{isRunningTests ? 'در حال اجرا...' : 'اجرای تست‌های خودکار (۱۹ تست)'}</span>
           </button>
 
           <button
             onClick={refreshData}
             title="بروزرسانی داده‌ها"
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -194,6 +236,7 @@ export default function App() {
       {/* Navigation Tabs */}
       <nav className="bg-slate-900 border-b border-slate-800 px-6 flex gap-1 overflow-x-auto text-sm">
         {[
+          { id: 'crm', label: 'مرکز مشتریان و CRM', icon: UserCheck, primary: true },
           { id: 'health', label: 'سلامت زیرساخت و داکر', icon: Activity },
           { id: 'iam', label: 'کاربران و ماتریس دسترسی', icon: Users },
           { id: 'sequences', label: 'توالی و سریال اسناد', icon: Hash },
@@ -212,7 +255,7 @@ export default function App() {
                 isActive
                   ? 'border-amber-500 text-amber-400 bg-amber-500/5'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-              }`}
+              } ${tab.primary ? 'font-bold' : ''}`}
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
@@ -228,7 +271,23 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
-        {/* TAB 1: HEALTH & INFRASTRUCTURE */}
+        {/* TAB: CRM - PARTY MANAGEMENT */}
+        {activeTab === 'crm' && (
+          <PartyList
+            companyId={selectedCompanyId}
+            userCtx={userCtx}
+            onSelectParty={p => {
+              setSelectedParty(p);
+              setIsPartyModalOpen(true);
+            }}
+            onNewParty={() => {
+              setSelectedParty(null);
+              setIsPartyModalOpen(true);
+            }}
+          />
+        )}
+
+        {/* TAB: HEALTH & INFRASTRUCTURE */}
         {activeTab === 'health' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -266,7 +325,7 @@ export default function App() {
                   <div className="text-xs text-slate-400">مخزن آبجکت S3 / MinIO</div>
                   <div className="text-base font-bold text-white mt-0.5">SHA-256 Deduplicated</div>
                   <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> باکت foolad-erp-vault
+                    <CheckCircle2 className="w-3.5 h-3.5" /> باکت tcerp-files
                   </div>
                 </div>
               </div>
@@ -283,56 +342,45 @@ export default function App() {
               </div>
             </div>
 
-            {/* Docker Compose Local Architecture Card */}
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
               <h2 className="text-base font-bold text-white mb-2 flex items-center gap-2">
                 <Server className="w-5 h-5 text-amber-400" />
-                پیکربندی محیط توسعه مستقل (Local Docker Stack)
+                پیکربندی کانتینرهای توسعه محلی (TCERP Docker Stack)
               </h2>
-              <p className="text-xs text-slate-400 mb-4">
-                برای جلوگیری از هرگونه وابستگی اجباری به سرویس‌های ابری، فایل docker-compose.yml و .env.example با متغیرهای مستقل تولید شده است:
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 <div className="bg-slate-950 p-4 rounded-lg border border-slate-800/80">
                   <div className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Database className="w-4 h-4 text-blue-400" /> PostgreSQL 16
+                    <Database className="w-4 h-4 text-blue-400" /> tcerp-postgres
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                    میزبانی داده‌های مالی، کاتالوگ و اسناد تجاری با ایزولاسیون تراکنش‌های حسابداری و قفل سطری FOR UPDATE.
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    کانتینر دیتابیس با افزونه pg_trgm برای جستجوی تشابه نام‌های بالای ۸۵٪.
                   </p>
-                  <div className="mt-3 text-[11px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded">Port: 5432</div>
                 </div>
-
                 <div className="bg-slate-950 p-4 rounded-lg border border-slate-800/80">
                   <div className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Cpu className="w-4 h-4 text-red-400" /> Redis 7
+                    <Cpu className="w-4 h-4 text-red-400" /> tcerp-redis
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                    مدیریت صف‌های ناهمگام استعلام مؤدیان، پیامک و قفل‌های توزیع‌شده شماره‌گذاری همروند.
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    کانتینر ردیس ۷ برای صف‌های پیامک، استعلام مؤدیان و قفل‌های همروند.
                   </p>
-                  <div className="mt-3 text-[11px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded">Port: 6379</div>
                 </div>
-
                 <div className="bg-slate-950 p-4 rounded-lg border border-slate-800/80">
                   <div className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-amber-400" /> MinIO S3 Storage
+                    <Layers className="w-4 h-4 text-amber-400" /> tcerp-minio
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                    بایگانی تصاویر باسکول، بارنامه‌ها و فیش‌های واریزی بدون اتلاف فضا بر اساس هش SHA-256.
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    کانتینر ذخیره‌سازی فایل با باکت tcerp-files و الگوریتم Deduplication هش SHA-256.
                   </p>
-                  <div className="mt-3 text-[11px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded">Ports: 9000, 9001</div>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: IAM & PERMISSIONS */}
+        {/* TAB: IAM & PERMISSIONS */}
         {activeTab === 'iam' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Users List */}
               <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
                 <div className="p-4 border-b border-slate-800 flex items-center justify-between">
                   <h3 className="font-bold text-white text-sm flex items-center gap-2">
@@ -358,11 +406,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Roles & Permissions */}
               <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
                 <div className="p-4 border-b border-slate-800 flex items-center justify-between">
                   <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-amber-400" /> نقش‌ها و دسترسی‌های تعریف‌شده ({roles.length})
+                    <Shield className="w-4 h-4 text-amber-400" /> نقش‌ها و دسترسی‌ها ({roles.length})
                   </h3>
                 </div>
                 <div className="divide-y divide-slate-800/60">
@@ -378,45 +425,20 @@ export default function App() {
                 </div>
               </div>
             </div>
-
-            {/* Granular Permission Matrix */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-              <h3 className="font-bold text-white text-sm mb-3 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-amber-400" /> ماتریس مجوزهای دانه‌ای (Fine-Grained Permissions)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {permissions.map(p => (
-                  <div key={p.id} className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-start gap-3">
-                    <div className={`p-1.5 rounded ${p.is_sensitive ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                      <Key className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-white">{p.name_fa}</div>
-                      <div className="text-[11px] font-mono text-slate-400 mt-0.5">{p.module}.{p.action}</div>
-                      {p.is_sensitive && (
-                        <span className="inline-block mt-1 text-[10px] px-1.5 py-0.2 bg-rose-500/20 text-rose-300 rounded font-medium">
-                          دسترسی حساس (Sensitive)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
-        {/* TAB 3: SEQUENCES */}
+        {/* TAB: SEQUENCES */}
         {activeTab === 'sequences' && (
           <div className="space-y-6">
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
-                    <Hash className="w-5 h-5 text-amber-400" /> موتور توالی و شماره‌گذاری بدون تکرار (Atomic Sequence Engine)
+                    <Hash className="w-5 h-5 text-amber-400" /> موتور توالی اسناد TCERP
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    تضمین عدم تولید شماره تکراری برای دو کاربر همزمان با قفل سطری و حفظ یکتایی پیش‌فاکتور و سفارش قطعی.
+                    تضمین عدم تکرار در همروندی بالا، قفل سطری و حفظ یکپارچگی پیش‌فاکتور و سفارش قطعی.
                   </p>
                 </div>
 
@@ -445,7 +467,7 @@ export default function App() {
                 <div className="mb-6 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-emerald-400 text-sm">
                     <CheckCircle2 className="w-5 h-5" />
-                    <span>شماره سند صادرشده به روش اتمیک:</span>
+                    <span>شماره سند صادرشده:</span>
                   </div>
                   <span className="font-mono text-lg font-bold text-emerald-300 bg-slate-950 px-4 py-1.5 rounded border border-emerald-500/30">
                     {lastGeneratedNumber}
@@ -474,7 +496,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: FILE VAULT WITH DEDUPLICATION */}
+        {/* TAB: FILES */}
         {activeTab === 'files' && (
           <div className="space-y-6">
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
@@ -483,7 +505,7 @@ export default function App() {
                 آزمون ذخیره‌سازی محتوا‌محور (Content-Addressable Deduplication)
               </h3>
               <p className="text-xs text-slate-400 mb-6">
-                سیستم با محاسبه هش SHA-256 محتوای فایل، از ذخیره فیزیکی مجدد بایت‌های تکراری جلوگیری می‌کند. فایل یک‌بار ذخیره و چندین‌بار منتسب می‌گردد.
+                سیستم با محاسبه هش SHA-256، از ذخیره فیزیکی مجدد بایت‌های تکراری در باکت tcerp-files ممانعت می‌کند.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -493,9 +515,9 @@ export default function App() {
                 >
                   <div className="flex items-center gap-2 text-sm font-semibold text-white">
                     <Upload className="w-4 h-4 text-blue-400" />
-                    آپلود ۱: قبض باسکول تناژ ۴۸.۵ تن (برای بارگیری ۱)
+                    آپلود ۱: قبض باسکول ۴۸.۵ تن (برای بارگیری ۱)
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">ایجاد رکورد فیزیکی جدید در مخزن MinIO با هش اختصاصی</p>
+                  <p className="text-xs text-slate-400 mt-1">ایجاد رکورد فیزیکی جدید با هش اختصاصی در باکت tcerp-files</p>
                 </button>
 
                 <button
@@ -506,7 +528,7 @@ export default function App() {
                     <Upload className="w-4 h-4 text-amber-400" />
                     آپلود ۲: همان قبض با نام فایل دیگر (برای سفارش فروش ۱۰۵)
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">تست Deduplication: استفاده مجدد از فایل قبلی بدون مصرف فضای دیسک</p>
+                  <p className="text-xs text-slate-400 mt-1">تست Deduplication: عدم مصرف بایت و استفاده مجدد از فایل قبلی</p>
                 </button>
               </div>
 
@@ -515,15 +537,12 @@ export default function App() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-sm text-white flex items-center gap-2">
                       <FileCheck className="w-4 h-4 text-amber-400" />
-                      نتیجه آزمون هشینگ: {uploadDemoResult.isDeduplicated ? '✅ فایل تکراری تشخیص داده شد (Deduplicated)' : '🆕 فایل جدید ذخیره شد'}
+                      نتیجه: {uploadDemoResult.isDeduplicated ? '✅ فایل تکراری تشخیص داده شد (Deduplicated)' : '🆕 فایل جدید ذخیره شد'}
                     </span>
                     <span className="text-xs font-mono text-slate-400">حجم: {uploadDemoResult.file.size_bytes} بایت</span>
                   </div>
                   <div className="text-xs font-mono text-slate-300 break-all bg-slate-950 p-2.5 rounded border border-slate-800">
                     SHA-256 Hash: {uploadDemoResult.file.content_hash}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-2">
-                    مسیر فیزیکی ذخیره‌سازی: <span className="font-mono text-slate-300">{uploadDemoResult.file.storage_path}</span>
                   </div>
                 </div>
               )}
@@ -531,7 +550,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: QUEUE & WORKERS */}
+        {/* TAB: QUEUE */}
         {activeTab === 'queue' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -561,13 +580,13 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleAddQueueJob('CRITICAL')}
-                    className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                    className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer"
                   >
                     + جاب با اولویت CRITICAL
                   </button>
                   <button
                     onClick={() => handleAddQueueJob('NORMAL')}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition"
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition cursor-pointer"
                   >
                     + جاب با اولویت NORMAL
                   </button>
@@ -591,14 +610,12 @@ export default function App() {
                         </div>
                         <div className="text-slate-400 font-mono text-[11px] mt-0.5">صف: {j.queue_name} • تلاش: {j.attempt_count}/{j.max_attempts}</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-mono ${
-                          j.status === 'SUCCEEDED' ? 'bg-emerald-500/20 text-emerald-400' :
-                          j.status === 'FAILED' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'
-                        }`}>
-                          {j.status}
-                        </span>
-                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-mono ${
+                        j.status === 'SUCCEEDED' ? 'bg-emerald-500/20 text-emerald-400' :
+                        j.status === 'FAILED' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'
+                      }`}>
+                        {j.status}
+                      </span>
                     </div>
                   ))
                 )}
@@ -607,12 +624,12 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 6: AUDIT LOG */}
+        {/* TAB: AUDIT */}
         {activeTab === 'audit' && (
           <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <Shield className="w-5 h-5 text-amber-400" /> دفتر ممیزی تغییرات سیستم (Immutable Audit Trail)
+                <Shield className="w-5 h-5 text-amber-400" /> دفتر ممیزی تغییرات سیستم (TCERP Immutable Audit Trail)
               </h3>
               <span className="text-xs text-slate-400 font-mono">غیرقابل ویرایش و حذف</span>
             </div>
@@ -639,7 +656,7 @@ export default function App() {
                     </div>
                     {log.reason && (
                       <p className="text-xs text-slate-300 mt-1 bg-slate-950 p-2 rounded border border-slate-800/60">
-                        علت ثبت‌شده: {log.reason}
+                        علت: {log.reason}
                       </p>
                     )}
                   </div>
@@ -649,7 +666,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: AUTOMATED TESTS */}
+        {/* TAB: AUTOMATED TESTS */}
         {activeTab === 'tests' && (
           <div className="space-y-6">
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
@@ -657,17 +674,17 @@ export default function App() {
                 <div>
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    نتایج آزمون‌های خودکار فاز ۱ (Automated Engineering Test Suite)
+                    نتایج آزمون‌های خودکار TCERP (۱۹ تست جامع فاز ۱ و ۲)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    اجرای بلادرنگ منطق‌های حساس خزانه‌داری، تراز دوبل، توالی همروند، دابلیکیت فایل و رد ادعای مشتری.
+                    شامل آزمون‌های نرمال‌سازی شماره، ممانعت از موبایل تکراری، تشابه نام، خزانه‌داری و تراز دوبل.
                   </p>
                 </div>
 
                 <button
                   onClick={runAllTests}
                   disabled={isRunningTests}
-                  className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                  className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50 cursor-pointer"
                 >
                   {isRunningTests ? 'در حال اجرا...' : 'اجرای مجدد آزمون‌ها'}
                 </button>
@@ -728,6 +745,16 @@ export default function App() {
         )}
       </main>
 
+      {/* Party Detail & Registration Modal */}
+      <PartyDetailModal
+        party={selectedParty}
+        isOpen={isPartyModalOpen}
+        onClose={() => setIsPartyModalOpen(false)}
+        onSaved={refreshData}
+        userCtx={userCtx}
+        companyId={selectedCompanyId}
+      />
+
       {/* Command Palette Modal (Ctrl+K) */}
       {commandPaletteOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-24 px-4">
@@ -737,7 +764,7 @@ export default function App() {
               <input
                 type="text"
                 autoFocus
-                placeholder="دستور یا عملیات موردنظر را جستجو کنید... (مثلاً: تست، توالی، فایل)"
+                placeholder="دستور یا عملیات موردنظر را جستجو کنید... (مثلاً: مشتری، تست، توالی، فایل)"
                 value={commandQuery}
                 onChange={e => setCommandQuery(e.target.value)}
                 className="w-full bg-transparent text-sm text-white placeholder-slate-500 outline-none"

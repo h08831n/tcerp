@@ -18,12 +18,12 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./*"],
-      "@foolad/domain": ["./packages/domain/src/index.ts"],
-      "@foolad/database": ["./packages/database/src/index.ts"],
-      "@foolad/shared": ["./packages/shared/src/index.ts"],
-      "@foolad/ui": ["./packages/ui/src/index.tsx"],
-      "@foolad/api": ["./apps/api/src/index.ts"],
-      "@foolad/worker": ["./apps/worker/src/index.ts"]
+      "@tcerp/domain": ["./packages/domain/src/index.ts"],
+      "@tcerp/database": ["./packages/database/src/index.ts"],
+      "@tcerp/shared": ["./packages/shared/src/index.ts"],
+      "@tcerp/ui": ["./packages/ui/src/index.tsx"],
+      "@tcerp/api": ["./apps/api/src/index.ts"],
+      "@tcerp/worker": ["./apps/worker/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true

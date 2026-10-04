@@ -101,6 +101,7 @@ export interface CustomerScoreHistory {
     purchase_count: number;
     total_paid: number;
     recency_days: number;
+    breakdown?: Record<string, unknown>;
   };
   effective_date: string;
 }

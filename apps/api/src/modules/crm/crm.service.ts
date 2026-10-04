@@ -21,7 +21,14 @@ import {
   User,
 } from '@tcerp/domain';
 import { partyRepository, PartyDetail } from '@tcerp/database';
-import { normalizeCanonicalPhone } from '@tcerp/shared';
+import {
+  normalizeCanonicalPhone,
+  CustomerMetricsInput,
+  CustomerScoringConfig,
+  CustomerScoreResult,
+  calculateCustomerScore,
+  DEFAULT_CUSTOMER_SCORING_CONFIG,
+} from '@tcerp/shared';
 import { auditService } from '../audit/audit.service';
 import { PermissionGuard, SecurityContext } from '../iam/permission.guard';
 
@@ -58,12 +65,16 @@ export class CrmService {
 
     // 2. Similar name check (pg_trgm >= 85%)
     if (params.nameFa) {
-      result.possibleDuplicates = await partyRepository.findSimilarNames(
+      const similar = await partyRepository.findSimilarNames(
         companyId,
         params.nameFa,
         params.excludePartyId,
         0.85
       );
+      result.possibleDuplicates = similar.map(s => ({
+        party: s.party,
+        similarityScore: s.similarity,
+      }));
     }
 
     return result;
@@ -131,6 +142,7 @@ export class CrmService {
     };
 
     const initialPhones = (data.phones || []).map(p => ({
+      company_id: companyId,
       phone_type: p.phone_type,
       raw_number: p.raw_number,
       normalized_number: normalizeCanonicalPhone(p.raw_number),
@@ -170,13 +182,11 @@ export class CrmService {
     // Track ownership change explicitly
     if (updates.assigned_salesperson_id && updates.assigned_salesperson_id !== existing.assigned_salesperson_id) {
       partyRepository.addTimelineEvent({
-        id: crypto.randomUUID(),
         party_id: partyId,
         event_type: 'OWNER_CHANGED',
         title: 'تغییر کارشناس مسئول طرف‌حساب',
         description: `کارشناس مسئول از "${existing.assigned_salesperson_id}" به "${updates.assigned_salesperson_id}" تغییر یافت.`,
         actor_user_id: userCtx.user.id,
-        created_at: new Date().toISOString(),
       });
     }
 
@@ -191,7 +201,8 @@ export class CrmService {
       reason: 'ویرایش مشخصات طرف‌حساب',
     });
 
-    return updated;
+    const fullDetail = await partyRepository.findPartyById(partyId);
+    return fullDetail!;
   }
 
   public async getPartyById(partyId: string, userCtx: SecurityContext): Promise<PartyDetail> {
@@ -373,6 +384,45 @@ export class CrmService {
 
   public async getTimeline(partyId: string): Promise<TimelineEvent[]> {
     return partyRepository.getTimelineEvents(partyId);
+  }
+
+  public async computeAndRecordCustomerScore(
+    partyId: string,
+    metrics: CustomerMetricsInput,
+    companyScoringConfig?: CustomerScoringConfig,
+    userCtx?: SecurityContext
+  ): Promise<CustomerScoreResult> {
+    const config = companyScoringConfig || DEFAULT_CUSTOMER_SCORING_CONFIG;
+    const result = calculateCustomerScore(metrics, config);
+
+    await partyRepository.recordScoreHistory({
+      party_id: partyId,
+      score_level: result.level,
+      computed_score: result.score,
+      metrics_snapshot: {
+        operational_profit: metrics.operational_profit,
+        purchased_tonnage: metrics.purchased_tonnage,
+        purchase_count: metrics.purchase_count,
+        total_paid: metrics.total_paid_amount,
+        recency_days: metrics.recency_days,
+        breakdown: result.breakdown,
+      },
+      effective_date: new Date().toISOString(),
+    });
+
+    if (userCtx) {
+      auditService.record({
+        companyId: userCtx.user.company_id,
+        entityType: 'CustomerScoreHistory',
+        entityId: partyId,
+        action: 'UPDATE',
+        userId: userCtx.user.id,
+        newValues: { score: result.score, level: result.level, breakdown: result.breakdown },
+        reason: 'محاسبه مجدد رتبه اعتباری مشتری بر اساس ۵ شاخص سود، تناژ، تعداد، پرداختی و تواتر',
+      });
+    }
+
+    return result;
   }
 }
 

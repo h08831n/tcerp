@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    define: {
+      global: 'globalThis',
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -15,6 +18,13 @@ export default defineConfig(() => {
         '@tcerp/ui': path.resolve(__dirname, 'packages/ui/src'),
         '@tcerp/api': path.resolve(__dirname, 'apps/api/src'),
         '@tcerp/worker': path.resolve(__dirname, 'apps/worker/src'),
+        '@tcerp/web': path.resolve(__dirname, 'apps/web/src'),
+        'util/types': path.resolve(__dirname, 'packages/shared/src/shims/util-types.ts'),
+        'node:util/types': path.resolve(__dirname, 'packages/shared/src/shims/util-types.ts'),
+        'util': path.resolve(__dirname, 'packages/shared/src/shims/util.ts'),
+        'node:util': path.resolve(__dirname, 'packages/shared/src/shims/util.ts'),
+        'events': path.resolve(__dirname, 'node_modules/events/events.js'),
+        'node:events': path.resolve(__dirname, 'node_modules/events/events.js'),
       },
     },
     server: {

@@ -270,7 +270,80 @@ export async function runCrmTests(): Promise<{ summary: { total: number; passed:
 
   // TEST 8: Financial Responsibility Roll-Up Consolidates Debt Accurately
   await test('Financial Responsibility', 'Guarantor group calculates consolidated debt while keeping individual balances independent', async () => {
-    const report = await crmService.getFinancialResponsibilityReport('party-ravan');
+    // Seed guarantor and subsidiaries
+    const guarantor = await partyRepository.createPartyWithDetails({
+      party: {
+        company_id: companyId,
+        party_type: 'PERSON',
+        name_fa: 'حاج محمود روانبخش (ضامن)',
+        customer_score_level: 'GOLD',
+        risk_flag: false,
+        operational_balance: 200_000_000,
+        status: 'ACTIVE',
+      },
+      roles: ['CUSTOMER'],
+      phones: [
+        {
+          company_id: companyId,
+          phone_type: 'MOBILE',
+          raw_number: '09121110001',
+          normalized_number: '+989121110001',
+          is_primary: true,
+          is_verified: true,
+        },
+      ],
+    });
+
+    const subA = await partyRepository.createPartyWithDetails({
+      party: {
+        company_id: companyId,
+        party_type: 'COMPANY',
+        name_fa: 'شرکت بازرگانی روانبخش الف',
+        customer_score_level: 'SILVER',
+        risk_flag: false,
+        operational_balance: 500_000_000,
+        status: 'ACTIVE',
+      },
+      roles: ['CUSTOMER'],
+      phones: [
+        {
+          company_id: companyId,
+          phone_type: 'WORK_PHONE',
+          raw_number: '02188880002',
+          normalized_number: '+982188880002',
+          is_primary: true,
+          is_verified: true,
+        },
+      ],
+    });
+
+    const subB = await partyRepository.createPartyWithDetails({
+      party: {
+        company_id: companyId,
+        party_type: 'COMPANY',
+        name_fa: 'صنایع پروفیل روانبخش ب',
+        customer_score_level: 'BRONZE',
+        risk_flag: false,
+        operational_balance: 300_000_000,
+        status: 'ACTIVE',
+      },
+      roles: ['CUSTOMER'],
+      phones: [
+        {
+          company_id: companyId,
+          phone_type: 'WORK_PHONE',
+          raw_number: '02188880003',
+          normalized_number: '+982188880003',
+          is_primary: true,
+          is_verified: true,
+        },
+      ],
+    });
+
+    await partyRepository.linkFinancialResponsibility(companyId, guarantor.id, subA.id, 'ضمانت خرید');
+    await partyRepository.linkFinancialResponsibility(companyId, guarantor.id, subB.id, 'ضمانت ورق');
+
+    const report = await crmService.getFinancialResponsibilityReport(guarantor.id);
 
     // Individual debts:
     // Mr. Ravan = 200M

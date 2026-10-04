@@ -17,9 +17,13 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@foolad/domain": ["./packages/domain/src/index.ts"],
+      "@foolad/database": ["./packages/database/src/index.ts"],
+      "@foolad/shared": ["./packages/shared/src/index.ts"],
+      "@foolad/ui": ["./packages/ui/src/index.tsx"],
+      "@foolad/api": ["./apps/api/src/index.ts"],
+      "@foolad/worker": ["./apps/worker/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true

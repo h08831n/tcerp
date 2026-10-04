@@ -1,0 +1,16 @@
+{
+  "name": "@foolad/web",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@foolad/domain": "*",
+    "@foolad/database": "*",
+    "@foolad/shared": "*",
+    "@foolad/ui": "*",
+    "@foolad/api": "*",
+    "@foolad/worker": "*",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
+  }
+}

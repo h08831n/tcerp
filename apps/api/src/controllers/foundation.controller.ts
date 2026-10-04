@@ -1,15 +1,15 @@
 /**
- * FooladERP - Modular API Handlers
- * Serves Phase 1 Foundation endpoints with validation, permission checks, and audit logging.
+ * FooladERP - API Foundation Controller
+ * Package: @foolad/api
  */
 
-import { auditService } from '../../apps/api/src/modules/audit/audit.service';
-import { fileStorageService } from '../../apps/api/src/modules/files/storage.service';
-import { sequenceService } from '../../apps/api/src/modules/sequences/sequence.service';
-import { memoryStore } from '../../packages/database/src/memory-store';
-import { validateEnvironment } from '../../packages/shared/src/config/env';
-import { queueService } from '../../apps/worker/src/queue.service';
-import { runFoundationTests } from '../../tests/foundation.test';
+import { auditService } from '../modules/audit/audit.service';
+import { sequenceService } from '../modules/sequences/sequence.service';
+import { fileStorageService } from '../modules/files/storage.service';
+import { treasuryFoundationService } from '../modules/treasury/treasury-foundation.service';
+import { memoryStore } from '@foolad/database';
+import { validateEnvironment } from '@foolad/shared';
+import { queueService } from '@foolad/worker';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -18,10 +18,9 @@ export interface ApiResponse<T = unknown> {
   meta?: Record<string, unknown>;
 }
 
-export class FoundationApiHandler {
+export class FoundationController {
   public static getHealth(): ApiResponse {
     const envCheck = validateEnvironment();
-    const queueMetrics = queueService.getMetrics();
     const fileStats = fileStorageService.getStats();
 
     return {
@@ -32,8 +31,7 @@ export class FoundationApiHandler {
         appUrl: envCheck.config.appUrl,
         database: {
           status: 'CONNECTED',
-          type: 'PostgreSQL 16 (Foundation In-Memory/Transactional Engine)',
-          poolActive: 2,
+          type: 'PostgreSQL 16 Engine',
         },
         redis: {
           status: 'CONNECTED',
@@ -44,9 +42,9 @@ export class FoundationApiHandler {
           type: 'MinIO / S3-Compatible Vault',
           stats: fileStats,
         },
-        queue: queueMetrics,
         companyCount: memoryStore.companies.size,
         userCount: memoryStore.users.size,
+        integrations: envCheck.config.integrations,
         timestamp: new Date().toISOString(),
       },
     };
@@ -63,45 +61,27 @@ export class FoundationApiHandler {
     const users = Array.from(memoryStore.users.values()).map(u => {
       const roleIds = memoryStore.userRoles.get(u.id) || [];
       const roles = roleIds.map(rid => memoryStore.roles.get(rid)).filter(Boolean);
-      return {
-        ...u,
-        roles,
-      };
+      return { ...u, roles };
     });
-
-    return {
-      success: true,
-      data: users,
-    };
+    return { success: true, data: users };
   }
 
   public static getRoles(): ApiResponse {
-    return {
-      success: true,
-      data: Array.from(memoryStore.roles.values()),
-    };
+    return { success: true, data: Array.from(memoryStore.roles.values()) };
   }
 
   public static getPermissions(): ApiResponse {
-    return {
-      success: true,
-      data: Array.from(memoryStore.permissions.values()),
-    };
+    return { success: true, data: Array.from(memoryStore.permissions.values()) };
   }
 
   public static getSequences(companyId: string): ApiResponse {
     const seqs = Array.from(memoryStore.sequences.values()).filter(s => s.company_id === companyId);
-    return {
-      success: true,
-      data: seqs,
-    };
+    return { success: true, data: seqs };
   }
 
   public static async generateNextSequence(companyId: string, documentType: string): Promise<ApiResponse> {
     try {
       const nextNumber = await sequenceService.generateNextNumber(companyId, documentType);
-      
-      // Update memory store state
       const seq = sequenceService.getSequence(companyId, documentType);
       if (seq) {
         memoryStore.sequences.set(seq.id, seq);
@@ -146,7 +126,6 @@ export class FoundationApiHandler {
     category?: string;
   }): Promise<ApiResponse> {
     const result = await fileStorageService.uploadAndAttach(params);
-    
     auditService.record({
       companyId: params.companyId,
       entityType: 'File',
@@ -154,11 +133,7 @@ export class FoundationApiHandler {
       action: 'CREATE',
       reason: `Uploaded ${params.filename} (Deduplicated: ${result.isDeduplicated})`,
     });
-
-    return {
-      success: true,
-      data: result,
-    };
+    return { success: true, data: result };
   }
 
   public static getQueueState(): ApiResponse {
@@ -172,6 +147,7 @@ export class FoundationApiHandler {
   }
 
   public static async runAllTests(): Promise<ApiResponse> {
+    const { runFoundationTests } = await import('../../../../tests/foundation.test');
     const testResult = await runFoundationTests();
     return {
       success: true,

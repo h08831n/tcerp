@@ -3,13 +3,14 @@
  * Runs automated integration and unit tests for critical business & financial logic.
  */
 
-import { auditService } from '../src/core/audit/audit.service';
-import { PermissionGuard, SecurityContext } from '../src/core/iam/permission.guard';
-import { sequenceService } from '../src/core/sequences/sequence.service';
-import { fileStorageService } from '../src/core/files/storage.service';
-import { queueService } from '../src/core/queue/queue.service';
-import { treasuryFoundationService } from '../src/core/accounting/treasury-foundation.service';
-import { BankTransfer, JournalEntry, OperationalSettlementClaim, Sequence, User } from '../src/core/types/foundation';
+import { auditService } from '../apps/api/src/modules/audit/audit.service';
+import { PermissionGuard, SecurityContext } from '../apps/api/src/modules/iam/permission.guard';
+import { sequenceService } from '../apps/api/src/modules/sequences/sequence.service';
+import { fileStorageService } from '../apps/api/src/modules/files/storage.service';
+import { queueService } from '../apps/worker/src/queue.service';
+import { treasuryFoundationService } from '../apps/api/src/modules/treasury/treasury-foundation.service';
+import { BankTransfer, JournalEntry, OperationalSettlementClaim, Sequence, User } from '../packages/domain/src/types/foundation';
+import { validateEnvironment } from '../packages/shared/src/config/env';
 
 export interface TestResult {
   title: string;
@@ -421,6 +422,26 @@ export async function runFoundationTests(): Promise<{ summary: { total: number; 
       polledFirstPriority: firstPolled.priority,
       deadLetterConfirmed: deadJob.is_dead_letter,
       lastError: deadJob.last_error,
+    };
+  });
+
+  // TEST 9: Environment Validation - Optional External Secrets in Local Development
+  await test('Configuration & Security', 'External secrets (SMS, Moadian, Telegram) are optional in local development', async () => {
+    const envCheck = validateEnvironment();
+    if (!envCheck.isValid) {
+      throw new Error(`Environment validation failed unexpectedly: ${envCheck.errors.join(', ')}`);
+    }
+
+    if (envCheck.config.integrations.sms.provider !== 'mock' && !envCheck.config.integrations.sms.apiKey) {
+      throw new Error('SMS key missing when provider is not mock');
+    }
+
+    return {
+      nodeEnv: envCheck.config.nodeEnv,
+      smsProvider: envCheck.config.integrations.sms.provider,
+      moadianEnabled: envCheck.config.integrations.moadian.enabled,
+      telegramEnabled: envCheck.config.integrations.telegram.enabled,
+      isValidInDev: envCheck.isValid,
     };
   });
 

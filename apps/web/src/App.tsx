@@ -31,7 +31,7 @@ import { FoundationController as FoundationApiHandler } from '@foolad/api';
 import { memoryStore } from '@foolad/database';
 import { fileStorageService } from '@foolad/api';
 import { queueService } from '@foolad/worker';
-import { TestResult } from '../tests/foundation.test';
+import { TestResult } from '../../../tests/foundation.test';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'health' | 'iam' | 'sequences' | 'files' | 'queue' | 'audit' | 'tests'>('health');

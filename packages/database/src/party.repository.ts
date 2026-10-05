@@ -292,12 +292,14 @@ export class PostgresPartyRepository implements IPartyRepository {
 
     return {
       ...party,
+      party,
       roles,
       phones,
       contacts,
       addresses,
       scoreHistory,
-    };
+      timeline: [],
+    } as any;
   }
 
   public async listParties(options: {
@@ -378,9 +380,64 @@ export class PostgresPartyRepository implements IPartyRepository {
     );
 
     const detailed: PartyDetail[] = [];
+    const partyIds = partiesRes.rows.map((r: any) => r.id);
+
+    // Fetch roles in batch (O(1) query complexity)
+    const rolesMap = new Map<string, PartyRole[]>();
+    // Fetch phones in batch (O(1) query complexity)
+    const phonesMap = new Map<string, PartyPhone[]>();
+
+    if (partyIds.length > 0) {
+      const placeholders = partyIds.map((_, i) => `$${i + 1}`).join(', ');
+      
+      const rolesRes = await this.pool.query(
+        `SELECT * FROM party_roles WHERE party_id IN (${placeholders}) AND is_active = true ORDER BY created_at ASC`,
+        partyIds
+      );
+      for (const r of rolesRes.rows) {
+        const list = rolesMap.get(r.party_id) || [];
+        list.push({
+          id: r.id,
+          party_id: r.party_id,
+          role_type: r.role_type as PartyRoleType,
+          is_active: Boolean(r.is_active),
+          created_at: new Date(r.created_at).toISOString(),
+        });
+        rolesMap.set(r.party_id, list);
+      }
+
+      const phonesRes = await this.pool.query(
+        `SELECT * FROM party_phones WHERE party_id IN (${placeholders}) ORDER BY is_primary DESC, created_at ASC`,
+        partyIds
+      );
+      for (const ph of phonesRes.rows) {
+        const list = phonesMap.get(ph.party_id) || [];
+        list.push({
+          id: ph.id,
+          company_id: ph.company_id,
+          party_id: ph.party_id,
+          phone_type: ph.phone_type as PhoneType,
+          raw_number: ph.raw_number,
+          normalized_number: ph.normalized_number,
+          is_primary: Boolean(ph.is_primary),
+          is_verified: Boolean(ph.is_verified),
+          created_at: new Date(ph.created_at).toISOString(),
+        });
+        phonesMap.set(ph.party_id, list);
+      }
+    }
+
     for (const row of partiesRes.rows) {
-      const detail = await this.findPartyById(row.id);
-      if (detail) detailed.push(detail);
+      detailed.push({
+        id: row.id,
+        party: this.mapPartyRow(row),
+        roles: rolesMap.get(row.id) || [],
+        phones: phonesMap.get(row.id) || [],
+        contacts: [],
+        addresses: [],
+        timeline: [],
+        scoreHistory: [],
+      } as any);
     }
 
     return { parties: detailed, total };
@@ -591,6 +648,23 @@ export class PostgresPartyRepository implements IPartyRepository {
           'PARTY_CREATED',
           'ثبت طرف‌حساب در سامانه',
           `طرف‌حساب ${data.party.name_fa} با موفقیت در پایگاه‌داده ایجاد شد.`,
+          now,
+        ]
+      );
+
+      // 7. Atomic Audit Log Record (Reliable Audit Persistence)
+      await client.query(
+        `INSERT INTO audit_logs (id, company_id, entity_type, entity_id, action, user_id, reason, new_values, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          crypto.randomUUID(),
+          data.party.company_id,
+          'PARTY',
+          partyId,
+          'CREATE',
+          data.party.assigned_salesperson_id || 'system',
+          'ثبت طرف‌حساب جدید',
+          JSON.stringify({ name_fa: data.party.name_fa, party_type: data.party.party_type, roles: data.roles }),
           now,
         ]
       );

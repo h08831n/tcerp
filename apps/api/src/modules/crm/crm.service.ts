@@ -20,7 +20,7 @@ import {
   TimelineEvent,
   User,
 } from '@tcerp/domain';
-import { partyRepository, PartyDetail } from '@tcerp/database';
+import { partyRepository, PartyDetail, DuplicatePhoneError } from '@tcerp/database';
 import {
   normalizeCanonicalPhone,
   CustomerMetricsInput,
@@ -29,9 +29,11 @@ import {
   calculateCustomerScore,
   DEFAULT_CUSTOMER_SCORING_CONFIG,
 } from '@tcerp/shared';
+import { Injectable } from '@nestjs/common';
 import { auditService } from '../audit/audit.service';
 import { PermissionGuard, SecurityContext } from '../iam/permission.guard';
 
+@Injectable()
 export class CrmService {
   /**
    * Pre-check for duplicate mobile numbers and similar names.
@@ -85,28 +87,21 @@ export class CrmService {
    */
   public async createParty(
     companyId: string,
-    data: {
-      party_type: PartyType;
-      name_fa: string;
-      name_en?: string;
-      national_id?: string;
-      economic_code?: string;
-      registration_number?: string;
-      postal_code?: string;
-      website?: string;
-      email?: string;
-      assigned_salesperson_id?: string;
-      initialRoles?: PartyRoleType[];
-      phones?: Array<{ phone_type: PhoneType; raw_number: string; is_primary?: boolean }>;
-    },
+    data: any,
     userCtx: SecurityContext
   ): Promise<{ party: PartyDetail; duplicateWarning?: string }> {
+    const partyObj = data.party || data;
+    const name_fa = (partyObj.name_fa || data.name_fa || '').trim();
+    const party_type = partyObj.party_type || data.party_type || 'COMPANY';
+    const phones: any[] = data.phones || partyObj.phones || [];
+    const initialRoles = data.initialRoles || data.roles || partyObj.roles || ['CUSTOMER'];
+
     // Check mobile duplicate
-    const primaryMobile = data.phones?.find(p => p.phone_type === 'MOBILE');
+    const primaryMobile = phones.find(p => p.phone_type === 'MOBILE');
     if (primaryMobile) {
       const dupCheck = await this.checkDuplicates(
         companyId,
-        { nameFa: data.name_fa, mobileNumber: primaryMobile.raw_number },
+        { nameFa: name_fa, mobileNumber: primaryMobile.raw_number },
         userCtx
       );
 
@@ -115,7 +110,7 @@ export class CrmService {
         const ownerMsg = dupInfo.hasAccessToOwner
           ? `این طرف‌حساب متعلق به کارشناس "${dupInfo.ownerSalespersonName}" است.`
           : 'این مشتری قبلاً در سیستم ثبت شده و به کارشناس دیگری تخصیص دارد.';
-        throw new Error(`خطای تکرار: شماره موبایل ${dupInfo.phone.normalized_number} متعلق به "${dupInfo.party.name_fa}" است. ${ownerMsg}`);
+        throw new DuplicatePhoneError(`خطای تکرار: شماره موبایل ${dupInfo.phone.normalized_number} متعلق به "${dupInfo.party.name_fa}" است. ${ownerMsg}`);
       }
     }
 
@@ -123,16 +118,16 @@ export class CrmService {
     const newParty: Party = {
       id: partyId,
       company_id: companyId,
-      party_type: data.party_type,
-      name_fa: data.name_fa.trim(),
-      name_en: data.name_en?.trim(),
-      national_id: data.national_id?.trim(),
-      economic_code: data.economic_code?.trim(),
-      registration_number: data.registration_number?.trim(),
-      postal_code: data.postal_code?.trim(),
-      website: data.website?.trim(),
-      email: data.email?.trim(),
-      assigned_salesperson_id: data.assigned_salesperson_id || userCtx.user.id,
+      party_type: party_type,
+      name_fa: name_fa,
+      name_en: partyObj.name_en?.trim(),
+      national_id: partyObj.national_id?.trim(),
+      economic_code: partyObj.economic_code?.trim(),
+      registration_number: partyObj.registration_number?.trim(),
+      postal_code: partyObj.postal_code?.trim(),
+      website: partyObj.website?.trim(),
+      email: partyObj.email?.trim(),
+      assigned_salesperson_id: partyObj.assigned_salesperson_id || userCtx.user.id,
       customer_score_level: 'BRONZE',
       risk_flag: false,
       operational_balance: 0,
@@ -141,7 +136,7 @@ export class CrmService {
       updated_at: new Date().toISOString(),
     };
 
-    const initialPhones = (data.phones || []).map(p => ({
+    const initialPhones = phones.map(p => ({
       company_id: companyId,
       phone_type: p.phone_type,
       raw_number: p.raw_number,
@@ -150,7 +145,7 @@ export class CrmService {
       is_verified: false,
     }));
 
-    const created = await partyRepository.createParty(newParty, data.initialRoles || ['CUSTOMER'], initialPhones);
+    const created = await partyRepository.createParty(newParty, initialRoles, initialPhones);
 
     // Audit log
     auditService.record({
@@ -269,7 +264,7 @@ export class CrmService {
     // Check duplicate
     const existing = await partyRepository.findByNormalizedPhone(userCtx.user.company_id, canonical);
     if (existing && existing.party.id !== partyId) {
-      throw new Error(`این شماره قبلاً برای "${existing.party.name_fa}" ثبت شده است.`);
+      throw new DuplicatePhoneError(`این شماره قبلاً برای "${existing.party.name_fa}" ثبت شده است.`);
     }
 
     const phone = await partyRepository.addPhone({

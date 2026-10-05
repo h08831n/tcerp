@@ -83,6 +83,11 @@ export class MemoryStore {
       { id: 'perm-accounting-post', module: 'accounting', action: 'post', name_fa: 'ثبت قطعی سند حسابداری', is_sensitive: true },
       { id: 'perm-files-upload', module: 'files', action: 'upload', name_fa: 'آپلود و مدیریت فایل', is_sensitive: false },
       { id: 'perm-queue-manage', module: 'queue', action: 'manage', name_fa: 'مدیریت صف‌ها و جاب‌های ناموفق', is_sensitive: true },
+      { id: 'perm-crm-view', module: 'crm', action: 'view', name_fa: 'مشاهده طرف‌های حساب CRM', is_sensitive: false },
+      { id: 'perm-crm-create', module: 'crm', action: 'create', name_fa: 'ثبت طرف‌حساب جدید', is_sensitive: false },
+      { id: 'perm-crm-update', module: 'crm', action: 'update', name_fa: 'ویرایش طرف‌حساب', is_sensitive: false },
+      { id: 'perm-crm-delete', module: 'crm', action: 'delete', name_fa: 'بایگانی طرف‌حساب', is_sensitive: false },
+      { id: 'perm-crm-view-all', module: 'crm', action: 'view_all_salespersons', name_fa: 'مشاهده همه کارشناسان فروش', is_sensitive: false },
     ];
     permissions.forEach(p => this.permissions.set(p.id, p));
 

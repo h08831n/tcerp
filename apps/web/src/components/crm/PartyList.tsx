@@ -20,9 +20,8 @@ import {
   DollarSign,
   AlertCircle
 } from 'lucide-react';
-import { CrmController } from '@tcerp/api';
-import { PartyDetail } from '@tcerp/database';
-import { PartyRoleType } from '@tcerp/domain';
+import { crmApi } from '../../lib/api/crm';
+import { PartyDetail, PartyRoleType } from '@tcerp/domain';
 import { formatRials } from '@tcerp/shared';
 
 interface PartyListProps {
@@ -51,23 +50,21 @@ export const PartyList: React.FC<PartyListProps> = ({
   const loadParties = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await CrmController.getParties({
-        companyId,
+      const res = await crmApi.getParties({
         query: query.trim() || undefined,
         role: (roleFilter as PartyRoleType) || undefined,
         status: statusFilter || undefined,
         page,
         limit,
-        userCtx,
       });
-      if (res.success && res.data) {
-        setParties(res.data as PartyDetail[]);
-        setTotal(res.meta?.total as number || 0);
-      }
+      setParties(res.items || []);
+      setTotal(res.total || 0);
+    } catch (err: any) {
+      console.error('Failed to load parties:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, query, roleFilter, statusFilter, page, limit, userCtx]);
+  }, [query, roleFilter, statusFilter, page, limit]);
 
   useEffect(() => {
     loadParties();
@@ -266,8 +263,8 @@ export const PartyList: React.FC<PartyListProps> = ({
                         </span>
                       </td>
                       <td className="py-3 px-4 text-left font-bold font-sans">
-                        <span className={p.operational_balance > 0 ? 'text-rose-400' : p.operational_balance < 0 ? 'text-emerald-400' : 'text-slate-400'}>
-                          {formatRials(p.operational_balance)}
+                        <span className={(p.operational_balance || 0) > 0 ? 'text-rose-400' : (p.operational_balance || 0) < 0 ? 'text-emerald-400' : 'text-slate-400'}>
+                          {formatRials(p.operational_balance ?? 0)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">

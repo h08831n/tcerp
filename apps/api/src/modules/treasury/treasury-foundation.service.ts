@@ -150,7 +150,7 @@ export class TreasuryFoundationService {
       entry_number: 105,
       entry_date: params.transfer.transfer_date,
       document_type: 'BANK_TRANSFER',
-      overall_description: `انتقال بین‌بانکی مبلغ ${X.toLocaleString('fa-IR')} ریال با کارمزد ${F.toLocaleString('fa-IR')} ریال`,
+      overall_description: `انتقال بین‌بانکی مبلغ ${(X || 0).toLocaleString('fa-IR')} ریال با کارمزد ${(F || 0).toLocaleString('fa-IR')} ریال`,
       status: 'POSTED',
       lines: journalLines,
       created_at: new Date().toISOString(),

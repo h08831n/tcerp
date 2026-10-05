@@ -173,3 +173,15 @@ export interface DuplicateCheckResult {
     similarityScore: number;
   }>;
 }
+
+export interface PartyDetail extends Partial<Party> {
+  id: string;
+  party: Party;
+  roles: PartyRole[];
+  phones: PartyPhone[];
+  contacts: Array<Contact & { phones: ContactPhone[] }>;
+  addresses: Address[];
+  timeline: TimelineEvent[];
+  scoreHistory?: CustomerScoreHistory[];
+  guaranteedParties?: Array<{ party: Party; individualDebt: number }>;
+}

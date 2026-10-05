@@ -16,11 +16,11 @@ import {
   Trash2,
   CheckCircle2
 } from 'lucide-react';
-import { CrmController } from '@tcerp/api';
-import { PartyDetail } from '@tcerp/database';
+import { crmApi } from '../../lib/api/crm';
 import {
   AddressType,
   ConsolidatedResponsibilityReport,
+  PartyDetail,
   PartyRoleType,
   PartyType,
   PhoneType,
@@ -88,14 +88,14 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
       });
 
       // Load timeline
-      CrmController.getTimeline(party.id).then(res => {
-        if (res.success && res.data) setTimeline(res.data as TimelineEvent[]);
-      });
+      crmApi.getTimeline(party.party.id).then(events => {
+        setTimeline(events);
+      }).catch(err => console.error('Failed to load timeline:', err));
 
       // Load financial responsibility report
-      CrmController.getFinancialResponsibility(party.id).then(res => {
-        if (res.success && res.data) setFinancialReport(res.data as ConsolidatedResponsibilityReport);
-      });
+      crmApi.getFinancialResponsibility(party.party.id).then(report => {
+        setFinancialReport(report);
+      }).catch(err => console.error('Failed to load financial report:', err));
     } else {
       setFormData({
         party_type: 'COMPANY',
@@ -144,26 +144,17 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
 
     try {
       if (party) {
-        // Update
-        const res = await CrmController.updateParty(party.id, formData, userCtx);
-        if (!res.success) {
-          throw new Error(res.error || 'خطا در ویرایش طرف‌حساب');
-        }
+        // Update via HTTP PATCH
+        await crmApi.updateParty(party.party.id, formData as any);
       } else {
-        // Create
+        // Create via HTTP POST
         const initialPhones = newPhone.raw_number ? [newPhone] : [];
-        const res = await CrmController.createParty(
-          companyId,
-          {
-            ...formData,
-            phones: initialPhones,
-            initialRoles: ['CUSTOMER'],
-          },
-          userCtx
-        );
-        if (!res.success) {
-          throw new Error(res.error || 'خطا در ثبت طرف‌حساب');
-        }
+        await crmApi.createParty({
+          ...formData,
+          party_type: formData.party_type === 'COMPANY' ? 'LEGAL_ENTITY' : formData.party_type,
+          phones: initialPhones,
+          roles: ['CUSTOMER'],
+        });
       }
 
       onSaved();
@@ -178,13 +169,9 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
   const handleAddPhone = async () => {
     if (!party || !newPhone.raw_number) return;
     try {
-      const res = await CrmController.addPhone(party.id, newPhone, userCtx);
-      if (res.success) {
-        setNewPhone({ phone_type: 'MOBILE', raw_number: '', is_primary: false });
-        onSaved();
-      } else {
-        setErrorMsg(res.error || 'خطا در ثبت شماره');
-      }
+      await crmApi.addPhone(party.party.id, newPhone);
+      setNewPhone({ phone_type: 'MOBILE', raw_number: '', is_primary: false });
+      onSaved();
     } catch (err: any) {
       setErrorMsg(err.message);
     }
@@ -193,10 +180,8 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
   const handleAddRole = async (roleType: PartyRoleType) => {
     if (!party) return;
     try {
-      const res = await CrmController.addRole(party.id, roleType, userCtx);
-      if (res.success) {
-        onSaved();
-      }
+      await crmApi.addRole(party.party.id, roleType);
+      onSaved();
     } catch (err: any) {
       setErrorMsg(err.message);
     }
@@ -495,18 +480,18 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
                         <strong className="text-white mr-2">{financialReport.guarantor.name_fa}</strong>
                       </div>
                       <span className="font-mono text-amber-300">
-                        بدهی انفرادی: {formatRials(financialReport.guarantor.operational_balance)}
+                        بدهی انفرادی: {formatRials(financialReport.guarantor?.operational_balance ?? 0)}
                       </span>
                     </div>
 
                     <div className="divide-y divide-slate-800 border border-slate-800 rounded-lg overflow-hidden">
                       <div className="p-2.5 bg-slate-900 text-slate-400 text-xs font-semibold">
-                        طرف‌حساب‌های تحت ضمانت ({financialReport.guaranteedParties.length})
+                        طرف‌حساب‌های تحت ضمانت ({financialReport.guaranteedParties?.length || 0})
                       </div>
-                      {financialReport.guaranteedParties.map(gp => (
-                        <div key={gp.party.id} className="p-3 bg-slate-950 flex items-center justify-between text-xs">
-                          <span className="text-white">{gp.party.name_fa}</span>
-                          <span className="font-mono text-rose-400">بدهی مستقل: {formatRials(gp.individualDebt)}</span>
+                      {(financialReport.guaranteedParties || []).map(gp => (
+                        <div key={gp.party?.id || Math.random()} className="p-3 bg-slate-950 flex items-center justify-between text-xs">
+                          <span className="text-white">{gp.party?.name_fa || '-'}</span>
+                          <span className="font-mono text-rose-400">بدهی مستقل: {formatRials(gp.individualDebt ?? 0)}</span>
                         </div>
                       ))}
                     </div>
@@ -514,7 +499,7 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
                     <div className="p-3.5 bg-purple-500/10 border border-purple-500/30 rounded-lg flex items-center justify-between text-sm">
                       <strong className="text-purple-300">مجموع تعهدات تجمیعی ضامن:</strong>
                       <span className="font-mono font-bold text-purple-200">
-                        {formatRials(financialReport.totalConsolidatedDebt)}
+                        {formatRials(financialReport.totalConsolidatedDebt ?? 0)}
                       </span>
                     </div>
                   </div>
@@ -567,7 +552,7 @@ export const PartyDetailModal: React.FC<PartyDetailModalProps> = ({
                       <div className="font-bold text-white flex items-center justify-between">
                         <span>{ev.title}</span>
                         <span className="text-[11px] font-mono text-slate-500">
-                          {new Date(ev.created_at).toLocaleString('fa-IR')}
+                          {ev.created_at ? new Date(ev.created_at).toLocaleString('fa-IR') : '-'}
                         </span>
                       </div>
                       {ev.description && <p className="text-slate-400 mt-1">{ev.description}</p>}
